@@ -8,7 +8,8 @@ namespace Extcode\CartPdf\Service;
  * For the full copyright and license information, please read the
  * LICENSE file that was distributed with this source code.
  */
-
+use TYPO3\CMS\Core\Resource\DuplicationBehavior;
+use TYPO3\CMS\Core\Http\ApplicationType;
 use Extcode\Cart\Domain\Model\Order\Item as OrderItem;
 use Extcode\Cart\Domain\Repository\Order\ItemRepository as OrderItemRepository;
 use Extcode\CartPdf\Domain\Model\Dto\PdfDemand;
@@ -122,7 +123,7 @@ class PdfService
             $targetFolder = $storage->getFolder($this->pdfSettings['storageFolder']);
 
             if (class_exists('\TYPO3\CMS\Core\Resource\DuplicationBehavior')) {
-                $conflictMode = \TYPO3\CMS\Core\Resource\DuplicationBehavior::RENAME;
+                $conflictMode = DuplicationBehavior::RENAME;
             } else {
                 $conflictMode = 'changeName';
             }
@@ -156,20 +157,20 @@ class PdfService
         $this->pdf->setSettings($pluginSettings);
         $this->pdf->setCartPdfType($pdfType . 'Pdf');
 
-        if (!$this->pdfSettings['header']) {
+        if (!isset($this->pdfSettings['header']) || !$this->pdfSettings['header']) {
             $this->pdf->setPrintHeader(false);
         } else {
-            if ($this->pdfSettings['header']['margin']) {
+            if (isset($this->pdfSettings['header']['margin'])) {
                 $this->pdf->setHeaderMargin($this->pdfSettings['header']['margin']);
                 $this->pdf->SetMargins(PDF_MARGIN_LEFT, $this->pdfSettings['header']['margin'], PDF_MARGIN_RIGHT);
             } else {
                 $this->pdf->SetMargins(PDF_MARGIN_LEFT, PDF_MARGIN_TOP, PDF_MARGIN_RIGHT);
             }
         }
-        if (!$this->pdfSettings['footer']) {
+        if (!isset($this->pdfSettings['footer']) || !$this->pdfSettings['footer']) {
             $this->pdf->setPrintFooter(false);
         } else {
-            if ($this->pdfSettings['footer']['margin']) {
+            if (isset($this->pdfSettings['footer']['margin'])) {
                 $this->pdf->setFooterMargin($this->pdfSettings['footer']['margin']);
                 $this->pdf->setAutoPageBreak(true, $this->pdfSettings['footer']['margin']);
             } else {
@@ -180,31 +181,31 @@ class PdfService
         $this->pdf->AddPage();
 
         $font = 'Helvetica';
-        if ($this->pdfSettings['font']) {
+        if (isset($this->pdfSettings['font'])) {
             $font = $this->pdfSettings['font'];
         }
 
         $fontStyle = '';
-        if ($this->pdfSettings['fontStyle']) {
+        if (isset($this->pdfSettings['fontStyle'])) {
             $fontStyle = $this->pdfSettings['fontStyle'];
         }
 
         $fontSize = 8;
-        if ($this->pdfSettings['fontSize']) {
+        if (isset($this->pdfSettings['fontSize'])) {
             $fontSize = $this->pdfSettings['fontSize'];
         }
 
         $this->pdf->SetFont($font, $fontStyle, $fontSize);
 
         $colorArray = [0, 0, 0];
-        if ($this->pdfSettings['drawColor']) {
+        if (isset($this->pdfSettings['drawColor'])) {
             $colorArray = explode(',', $this->pdfSettings['drawColor']);
         }
         $this->pdf->setDrawColorArray($colorArray);
 
         $this->renderMarker();
 
-        if ($this->pdfSettings['letterhead']['html']) {
+        if (isset($this->pdfSettings['letterhead']['html'])) {
             foreach ($this->pdfSettings['letterhead']['html'] as $partName => $partConfig) {
                 $templatePath = '/' . ucfirst($pdfType) . 'Pdf/Letterhead/';
                 $assignToView = ['orderItem' => $orderItem];
@@ -212,7 +213,7 @@ class PdfService
             }
         }
 
-        if ($this->pdfSettings['body']['before']['html']) {
+        if (isset($this->pdfSettings['body']['before']['html'])) {
             foreach ($this->pdfSettings['body']['before']['html'] as $partName => $partConfig) {
                 $templatePath = '/' . ucfirst($pdfType) . 'Pdf/Body/Before/';
                 $assignToView = ['orderItem' => $orderItem];
@@ -222,7 +223,7 @@ class PdfService
 
         $this->renderCart($orderItem, $pdfType);
 
-        if ($this->pdfSettings['body']['after']['html']) {
+        if (isset($this->pdfSettings['body']['after']['html'])) {
             foreach ($this->pdfSettings['body']['after']['html'] as $partName => $partConfig) {
                 $templatePath = '/' . ucfirst($pdfType) . 'Pdf/Body/After/';
                 $assignToView = ['orderItem' => $orderItem];
@@ -270,8 +271,12 @@ class PdfService
         $config = $this->pdfSettings['body']['order'];
         $config['height'] = 0;
 
-        if (!$config['spacingY'] && !$config['positionY']) {
+        if (
+            (!isset($config['spacingY'])  && !isset($config['positionY']))
+            || (!$config['spacingY'] && !$config['positionY'])
+        ) {
             $config['spacingY'] = 5;
+            $config['positionY'] = 0;
         }
 
         $headerOut = $this->renderCartHeader($orderItem, $pdfType);
@@ -313,10 +318,10 @@ class PdfService
 
     protected function renderCartFooter(OrderItem $orderItem, string $pdfType): string
     {
-        $view = $this->pdf->getStandaloneView('/' . ucfirst($pdfType) . '/Order/', 'Footer');
+        $view = $this->pdf->getStandaloneView(/* '/' . */ ucfirst($pdfType) . '/Order/', 'Footer');
         $view->assign('orderSettings', $this->pdfSettings['body']['order']);
         $view->assign('orderItem', $orderItem);
-        $footer = $view->render();
+        $footer = $view->render() ?? '';
         $footerOut = trim(preg_replace('~[\n]+~', '', $footer));
 
         return $footerOut;
@@ -327,7 +332,7 @@ class PdfService
      */
     protected function setPluginSettings(string $pdfType)
     {
-        if (TYPO3_MODE === 'BE') {
+        if (ApplicationType::fromRequest($GLOBALS['TYPO3_REQUEST'])->isBackend()) {
             $pageId = (int)(GeneralUtility::_GET('id')) ? GeneralUtility::_GET('id') : 1;
 
             $frameworkConfiguration = $this->configurationManager->getConfiguration(
@@ -383,6 +388,7 @@ class PdfService
             ]
         );
 
+        /** @var FileReference $fileReference */
         $fileReference = GeneralUtility::makeInstance(
             FileReference::class
         );

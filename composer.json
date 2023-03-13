@@ -42,7 +42,7 @@
         }
     },
     "require": {
-        "php": ">=7.2.0 <7.5",
+        "php": ">=7.2.0 <8.2",
         "typo3/cms-core": "^11.5",
         "extcode/cart": "^8.0",
         "extcode/tcpdf": "^4.0.0"
